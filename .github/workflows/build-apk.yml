@@ -22,7 +22,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.7'
+          gradle-version: '8.9'
 
       - name: Accept Android SDK Licenses
         run: |
@@ -57,7 +57,6 @@ jobs:
 
       - name: Configure Root & App Gradle Build Scripts
         run: |
-          # 1. റൂട്ട് build.gradle.kts ക്രമീകരിക്കുന്നു
           cat << 'EOF' > build.gradle.kts
           plugins {
               alias(libs.plugins.android.application) apply false
@@ -66,7 +65,6 @@ jobs:
           }
           EOF
 
-          # 2. app/build.gradle.kts ഉണ്ടോ എന്ന് പരിശോധിക്കുന്നു, ഇല്ലെങ്കിൽ ഒരു ഫങ്ഷണൽ കോമ്പോസ് ബിൽഡ് ഫയൽ നൽകുന്നു
           mkdir -p app
           if [ ! -f "app/build.gradle.kts" ] && [ ! -f "app/build.gradle" ]; then
             echo "Creating fallback app/build.gradle.kts..."
@@ -116,14 +114,11 @@ jobs:
           EOF
           fi
 
-          # 3. Gradle Wrapper ഫയലുകൾ സജ്ജമാക്കുന്നു
-          gradle wrapper --gradle-version 8.7
+          gradle wrapper --gradle-version 8.9
           chmod +x gradlew
 
       - name: Build Debug APK
-        run: |
-          # app മൊഡ്യൂളിലെ ടാസ്ക് നേരിട്ട് റൺ ചെയ്യുന്നു
-          ./gradlew :app:assembleDebug --stacktrace --no-daemon
+        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
