@@ -47,12 +47,14 @@ jobs:
           
           PAYLOAD='${{ toJson(github.event.client_payload) }}' node parse_files.js
 
-      - name: Ensure Gradle Wrapper Exists
+      - name: Setup Gradle 8.7 Wrapper
         run: |
           if [ ! -f "./gradlew" ]; then
-            echo "Installing Gradle Wrapper..."
-            sudo apt-get update && sudo apt-get install -y gradle
-            gradle wrapper
+            echo "Setting up Gradle 8.7 Wrapper directly..."
+            wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip -O gradle-bin.zip
+            unzip -q gradle-bin.zip
+            ./gradle-8.7/bin/gradle wrapper --gradle-version 8.7
+            rm -rf gradle-bin.zip gradle-8.7
           fi
           chmod +x gradlew
 
