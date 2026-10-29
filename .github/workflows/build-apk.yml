@@ -55,26 +55,75 @@ jobs:
             }
           '
 
-      - name: Ensure Root Build Gradle & Wrapper
+      - name: Configure Root & App Gradle Build Scripts
         run: |
-          # റൂട്ട് build.gradle.kts ഇല്ലെങ്കിൽ ഒരു ഡിഫോൾട്ട് ഫയൽ സ്വയം ഉണ്ടാക്കുന്നു
-          if [ ! -f "build.gradle" ] && [ ! -f "build.gradle.kts" ]; then
-            echo "Creating missing root build.gradle.kts..."
-            cat << 'EOF' > build.gradle.kts
+          # 1. റൂട്ട് build.gradle.kts ക്രമീകരിക്കുന്നു
+          cat << 'EOF' > build.gradle.kts
           plugins {
               alias(libs.plugins.android.application) apply false
               alias(libs.plugins.kotlin.android) apply false
               alias(libs.plugins.kotlin.compose) apply false
           }
           EOF
+
+          # 2. app/build.gradle.kts ഉണ്ടോ എന്ന് പരിശോധിക്കുന്നു, ഇല്ലെങ്കിൽ ഒരു ഫങ്ഷണൽ കോമ്പോസ് ബിൽഡ് ഫയൽ നൽകുന്നു
+          mkdir -p app
+          if [ ! -f "app/build.gradle.kts" ] && [ ! -f "app/build.gradle" ]; then
+            echo "Creating fallback app/build.gradle.kts..."
+            cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              alias(libs.plugins.android.application)
+              alias(libs.plugins.kotlin.android)
+              alias(libs.plugins.kotlin.compose)
+          }
+
+          android {
+              namespace = "com.example.counterapp"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.example.counterapp"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              buildFeatures {
+                  compose = true
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation(libs.androidx.core.ktx)
+              implementation(libs.androidx.lifecycle.runtime.ktx)
+              implementation(libs.androidx.activity.compose)
+              implementation(platform(libs.androidx.compose.bom))
+              implementation(libs.androidx.ui)
+              implementation(libs.androidx.ui.graphics)
+              implementation(libs.androidx.ui.tooling.preview)
+              implementation(libs.androidx.material3)
+          }
+          EOF
           fi
 
-          # Gradle Wrapper ഫയലുകൾ ജനറേറ്റ് ചെയ്യുന്നു
+          # 3. Gradle Wrapper ഫയലുകൾ സജ്ജമാക്കുന്നു
           gradle wrapper --gradle-version 8.7
           chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: |
+          # app മൊഡ്യൂളിലെ ടാസ്ക് നേരിട്ട് റൺ ചെയ്യുന്നു
+          ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
