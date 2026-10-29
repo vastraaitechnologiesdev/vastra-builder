@@ -24,9 +24,10 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Accept Android SDK Licenses
+      - name: Accept Android SDK Licenses & Install API 35
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Write Project Files from Payload
         env:
@@ -57,7 +58,7 @@ jobs:
 
       - name: Configure Root & App Gradle Build Scripts
         run: |
-          # 1. AndroidX പ്രവർത്തനക്ഷമമാക്കാൻ gradle.properties ഫയൽ നിർബന്ധമായും ഉണ്ടാക്കുന്നു
+          # 1. AndroidX പ്രവർത്തനക്ഷമമാക്കുന്നു
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           android.nonTransitiveRClass=true
@@ -73,11 +74,9 @@ jobs:
           }
           EOF
 
-          # 3. app/build.gradle.kts ഉണ്ടെന്ന് ഉറപ്പാക്കുന്നു
+          # 3. app/build.gradle.kts നിർബന്ധമായും compileSdk = 35 ലേക്ക് അപ്ഡേറ്റ് ചെയ്യുന്നു
           mkdir -p app
-          if [ ! -f "app/build.gradle.kts" ] && [ ! -f "app/build.gradle" ]; then
-            echo "Creating fallback app/build.gradle.kts..."
-            cat << 'EOF' > app/build.gradle.kts
+          cat << 'EOF' > app/build.gradle.kts
           plugins {
               alias(libs.plugins.android.application)
               alias(libs.plugins.kotlin.android)
@@ -86,12 +85,12 @@ jobs:
 
           android {
               namespace = "com.example.counterapp"
-              compileSdk = 34
+              compileSdk = 35
 
               defaultConfig {
                   applicationId = "com.example.counterapp"
                   minSdk = 24
-                  targetSdk = 34
+                  targetSdk = 35
                   versionCode = 1
                   versionName = "1.0"
               }
@@ -121,9 +120,8 @@ jobs:
               implementation(libs.androidx.material3)
           }
           EOF
-          fi
 
-          # 4. Wrapper നിർമ്മിക്കുന്നു
+          # 4. Gradle Wrapper ഉറപ്പാക്കുന്നു
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
 
