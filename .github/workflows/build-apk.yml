@@ -49,9 +49,22 @@ jobs:
                 const target = path.resolve(f.path);
                 fs.mkdirSync(path.dirname(target), { recursive: true });
                 
-                // കോഡിലെ അനാവശ്യ markdown backticks (```kotlin, ```) സ്ട്രിപ്പ് ചെയ്യുന്നു
                 let content = f.content || "";
-                content = content.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
+                
+                // എസ്കേപ്പ് ചെയ്ത ന്യൂലൈനുകൾ ശരിയാക്കുന്നു
+                if (typeof content === "string") {
+                  content = content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t");
+                  // മാർക്ക്ഡൗൺ കോഡ് ബ്ലോക്കുകൾ ഉണ്ടെങ്കിൽ ഒഴിവാക്കുന്നു
+                  content = content.replace(/^```[a-zA-Z]*\r?\n/, "").replace(/\r?\n```$/, "").trim();
+                  
+                  // കോട്ലിൻ ഫയലുകളിൽ package എന്നതിന് മുൻപിൽ വരുന്ന അനാവശ്യ പ്രതീകങ്ങൾ ഒഴിവാക്കുന്നു
+                  if (f.path.endsWith(".kt")) {
+                    const pkgIndex = content.indexOf("package ");
+                    if (pkgIndex > 0) {
+                      content = content.substring(pkgIndex);
+                    }
+                  }
+                }
                 
                 fs.writeFileSync(target, content, "utf8");
                 console.log("Cleaned and Written: " + f.path);
@@ -82,7 +95,6 @@ jobs:
           # 3. strings.xml ഉറപ്പുവരുത്തുന്നു
           mkdir -p app/src/main/res/values
           if [ ! -f "app/src/main/res/values/strings.xml" ]; then
-            echo "Creating fallback strings.xml..."
             cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
               <string name="app_name">MinimalCounterApp</string>
