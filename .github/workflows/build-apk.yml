@@ -19,6 +19,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
       - name: Accept Android SDK Licenses
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
@@ -50,24 +55,26 @@ jobs:
             }
           '
 
-      - name: Build Debug APK with System Gradle
+      - name: Ensure Root Build Gradle & Wrapper
         run: |
-          echo "Listing current files:"
-          ls -la
-          
-          # Root build file ഇല്ലെങ്കിൽ ബിൽഡ് ഫെയിൽ ആകും, അത് പരിശോധിക്കുന്നു
+          # റൂട്ട് build.gradle.kts ഇല്ലെങ്കിൽ ഒരു ഡിഫോൾട്ട് ഫയൽ സ്വയം ഉണ്ടാക്കുന്നു
           if [ ! -f "build.gradle" ] && [ ! -f "build.gradle.kts" ]; then
-            echo "Error: No root build.gradle found in project files!"
-            exit 1
+            echo "Creating missing root build.gradle.kts..."
+            cat << 'EOF' > build.gradle.kts
+          plugins {
+              alias(libs.plugins.android.application) apply false
+              alias(libs.plugins.kotlin.android) apply false
+              alias(libs.plugins.kotlin.compose) apply false
+          }
+          EOF
           fi
 
-          # Wrapper ഉണ്ടെങ്കിൽ അത് ഉപയോഗിക്കുക, ഇല്ലെങ്കിൽ ഇൻസ്റ്റാൾ ചെയ്യുക
-          if [ ! -f "./gradlew" ]; then
-            gradle wrapper --gradle-version 8.7
-            chmod +x gradlew
-          fi
+          # Gradle Wrapper ഫയലുകൾ ജനറേറ്റ് ചെയ്യുന്നു
+          gradle wrapper --gradle-version 8.7
+          chmod +x gradlew
 
-          ./gradlew assembleDebug --stacktrace --no-daemon
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
