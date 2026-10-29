@@ -19,24 +19,49 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Unpack Incoming Files
+      - name: Accept Android SDK Licenses
         run: |
-          echo "Incoming client build dispatched..."
-          # V Astra അയക്കുന്ന ഫയലുകൾ പ്രോസസ്സ് ചെയ്യാനുള്ള സ്റ്റെപ്പ്
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Write Project Files from Payload
+        run: |
+          echo "Decoding incoming project files..."
+          cat << 'EOF' > parse_files.js
+          const fs = require('fs');
+          const path = require('path');
+          
+          try {
+            const payload = JSON.parse(process.env.PAYLOAD || '{}');
+            const files = payload.files || [];
+            
+            files.forEach(file => {
+              const fullPath = path.resolve(file.path);
+              fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+              fs.writeFileSync(fullPath, file.content, 'utf8');
+              console.log(`Created: ${file.path}`);
+            });
+          } catch (e) {
+            console.log("No custom files payload or parse error:", e.message);
+          }
+          EOF
+          
+          PAYLOAD='${{ toJson(github.event.client_payload) }}' node parse_files.js
+
+      - name: Ensure Gradle Wrapper Exists
+        run: |
+          if [ ! -f "./gradlew" ]; then
+            echo "Installing Gradle Wrapper..."
+            sudo apt-get update && sudo apt-get install -y gradle
+            gradle wrapper
+          fi
+          chmod +x gradlew
 
       - name: Build Debug APK
-        run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x gradlew
-            ./gradlew assembleDebug
-          fi
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 1
