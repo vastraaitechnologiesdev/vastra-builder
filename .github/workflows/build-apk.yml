@@ -19,44 +19,55 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle 8.7
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
-
       - name: Accept Android SDK Licenses
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Write Project Files from Payload
+        env:
+          RAW_PAYLOAD: ${{ toJson(github.event.client_payload) }}
         run: |
-          echo "Decoding incoming project files..."
-          cat << 'EOF' > parse_files.js
-          const fs = require('fs');
-          const path = require('path');
-          
-          try {
-            const payload = JSON.parse(process.env.PAYLOAD || '{}');
-            const files = payload.files || [];
-            
-            files.forEach(file => {
-              const fullPath = path.resolve(file.path);
-              fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-              fs.writeFileSync(fullPath, file.content, 'utf8');
-              console.log(`Created: ${file.path}`);
-            });
-          } catch (e) {
-            console.log("No custom files payload or parse error:", e.message);
-          }
-          EOF
-          
-          PAYLOAD='${{ toJson(github.event.client_payload) }}' node parse_files.js
+          node -e '
+            const fs = require("fs");
+            const path = require("path");
+            const raw = process.env.RAW_PAYLOAD;
+            if (!raw) {
+              console.log("No payload found!");
+              process.exit(0);
+            }
+            try {
+              const payload = JSON.parse(raw);
+              const files = payload.files || [];
+              console.log("Found " + files.length + " files in payload.");
+              files.forEach(f => {
+                const target = path.resolve(f.path);
+                fs.mkdirSync(path.dirname(target), { recursive: true });
+                fs.writeFileSync(target, f.content, "utf8");
+                console.log("Written: " + f.path);
+              });
+            } catch (err) {
+              console.error("Payload parse error: " + err.message);
+            }
+          '
 
-      - name: Generate Wrapper & Build Debug APK
+      - name: Build Debug APK with System Gradle
         run: |
-          gradle wrapper --gradle-version 8.7
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          echo "Listing current files:"
+          ls -la
+          
+          # Root build file ഇല്ലെങ്കിൽ ബിൽഡ് ഫെയിൽ ആകും, അത് പരിശോധിക്കുന്നു
+          if [ ! -f "build.gradle" ] && [ ! -f "build.gradle.kts" ]; then
+            echo "Error: No root build.gradle found in project files!"
+            exit 1
+          fi
+
+          # Wrapper ഉണ്ടെങ്കിൽ അത് ഉപയോഗിക്കുക, ഇല്ലെങ്കിൽ ഇൻസ്റ്റാൾ ചെയ്യുക
+          if [ ! -f "./gradlew" ]; then
+            gradle wrapper --gradle-version 8.7
+            chmod +x gradlew
+          fi
+
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
