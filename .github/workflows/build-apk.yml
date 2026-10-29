@@ -29,7 +29,7 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Write Project Files from Payload
+      - name: Write & Sanitize Project Files from Payload
         env:
           RAW_PAYLOAD: ${{ toJson(github.event.client_payload) }}
         run: |
@@ -48,8 +48,13 @@ jobs:
               files.forEach(f => {
                 const target = path.resolve(f.path);
                 fs.mkdirSync(path.dirname(target), { recursive: true });
-                fs.writeFileSync(target, f.content, "utf8");
-                console.log("Written: " + f.path);
+                
+                // കോഡിലെ അനാവശ്യ markdown backticks (```kotlin, ```) സ്ട്രിപ്പ് ചെയ്യുന്നു
+                let content = f.content || "";
+                content = content.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
+                
+                fs.writeFileSync(target, content, "utf8");
+                console.log("Cleaned and Written: " + f.path);
               });
             } catch (err) {
               console.error("Payload parse error: " + err.message);
@@ -58,7 +63,7 @@ jobs:
 
       - name: Configure Root & App Gradle Build Scripts
         run: |
-          # 1. AndroidX പ്രവർത്തനക്ഷമമാക്കുന്നു
+          # 1. AndroidX ഉറപ്പാക്കുന്നു
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           android.nonTransitiveRClass=true
@@ -74,7 +79,7 @@ jobs:
           }
           EOF
 
-          # 3. മിസ്സിംഗ് ആയ strings.xml ഉറപ്പുവരുത്തുന്നു (AAPT resource error പരിഹരിക്കാൻ)
+          # 3. strings.xml ഉറപ്പുവരുത്തുന്നു
           mkdir -p app/src/main/res/values
           if [ ! -f "app/src/main/res/values/strings.xml" ]; then
             echo "Creating fallback strings.xml..."
