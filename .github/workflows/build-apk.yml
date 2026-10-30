@@ -79,7 +79,27 @@ jobs:
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           EOF
 
-          # 2. libs റഫറൻസ് ഇല്ലാതെ നേരിട്ട് പ്ലഗിൻ വേർഷനുകൾ നൽകുന്ന റൂട്ട് build.gradle.kts
+          # 2. ശരിയായ Google, Maven Central repositories അടങ്ങിയ settings.gradle.kts
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "CounterApp"
+          include(":app")
+          EOF
+
+          # 3. റൂട്ട് build.gradle.kts
           cat << 'EOF' > build.gradle.kts
           plugins {
               id("com.android.application") version "8.7.3" apply false
@@ -88,7 +108,7 @@ jobs:
           }
           EOF
 
-          # 3. strings.xml ഉറപ്പുവരുത്തുന്നു
+          # 4. strings.xml ഉറപ്പുവരുത്തുന്നു
           mkdir -p app/src/main/res/values
           if [ ! -f "app/src/main/res/values/strings.xml" ]; then
             cat << 'EOF' > app/src/main/res/values/strings.xml
@@ -98,7 +118,7 @@ jobs:
           EOF
           fi
 
-          # 4. app/build.gradle.kts നേരിട്ടുള്ള ഡിപൻഡൻസികളോടെ ക്രമീകരിക്കുന്നു
+          # 5. app/build.gradle.kts ക്രമീകരിക്കുന്നു
           mkdir -p app
           cat << 'EOF' > app/build.gradle.kts
           plugins {
@@ -145,7 +165,7 @@ jobs:
           }
           EOF
 
-          # 5. Gradle Wrapper ഉറപ്പാക്കുന്നു
+          # 6. Wrapper ഉറപ്പാക്കുന്നു
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
 
