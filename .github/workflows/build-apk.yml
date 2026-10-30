@@ -50,14 +50,10 @@ jobs:
                 fs.mkdirSync(path.dirname(target), { recursive: true });
                 
                 let content = f.content || "";
-                
-                // എസ്കേപ്പ് ചെയ്ത ന്യൂലൈനുകൾ ശരിയാക്കുന്നു
                 if (typeof content === "string") {
                   content = content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t");
-                  // മാർക്ക്ഡൗൺ കോഡ് ബ്ലോക്കുകൾ ഉണ്ടെങ്കിൽ ഒഴിവാക്കുന്നു
                   content = content.replace(/^```[a-zA-Z]*\r?\n/, "").replace(/\r?\n```$/, "").trim();
                   
-                  // കോട്ലിൻ ഫയലുകളിൽ package എന്നതിന് മുൻപിൽ വരുന്ന അനാവശ്യ പ്രതീകങ്ങൾ ഒഴിവാക്കുന്നു
                   if (f.path.endsWith(".kt")) {
                     const pkgIndex = content.indexOf("package ");
                     if (pkgIndex > 0) {
@@ -83,12 +79,12 @@ jobs:
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           EOF
 
-          # 2. റൂട്ട് build.gradle.kts ക്രമീകരിക്കുന്നു
+          # 2. libs റഫറൻസ് ഇല്ലാതെ നേരിട്ട് പ്ലഗിൻ വേർഷനുകൾ നൽകുന്ന റൂട്ട് build.gradle.kts
           cat << 'EOF' > build.gradle.kts
           plugins {
-              alias(libs.plugins.android.application) apply false
-              alias(libs.plugins.kotlin.android) apply false
-              alias(libs.plugins.kotlin.compose) apply false
+              id("com.android.application") version "8.7.3" apply false
+              id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+              id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false
           }
           EOF
 
@@ -97,26 +93,26 @@ jobs:
           if [ ! -f "app/src/main/res/values/strings.xml" ]; then
             cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
-              <string name="app_name">MinimalCounterApp</string>
+              <string name="app_name">CounterApp</string>
           </resources>
           EOF
           fi
 
-          # 4. app/build.gradle.kts ക്രമീകരിക്കുന്നു
+          # 4. app/build.gradle.kts നേരിട്ടുള്ള ഡിപൻഡൻസികളോടെ ക്രമീകരിക്കുന്നു
           mkdir -p app
           cat << 'EOF' > app/build.gradle.kts
           plugins {
-              alias(libs.plugins.android.application)
-              alias(libs.plugins.kotlin.android)
-              alias(libs.plugins.kotlin.compose)
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+              id("org.jetbrains.kotlin.plugin.compose")
           }
 
           android {
-              namespace = "com.example.counterapp"
+              namespace = "com.vastra.app"
               compileSdk = 35
 
               defaultConfig {
-                  applicationId = "com.example.counterapp"
+                  applicationId = "com.vastra.app"
                   minSdk = 24
                   targetSdk = 35
                   versionCode = 1
@@ -138,14 +134,14 @@ jobs:
           }
 
           dependencies {
-              implementation(libs.androidx.core.ktx)
-              implementation(libs.androidx.lifecycle.runtime.ktx)
-              implementation(libs.androidx.activity.compose)
-              implementation(platform(libs.androidx.compose.bom))
-              implementation(libs.androidx.ui)
-              implementation(libs.androidx.ui.graphics)
-              implementation(libs.androidx.ui.tooling.preview)
-              implementation(libs.androidx.material3)
+              implementation("androidx.core:core-ktx:1.15.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+              implementation("androidx.activity:activity-compose:1.9.3")
+              implementation(platform("androidx.compose:compose-bom:2024.11.00"))
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.ui:ui-tooling-preview")
+              implementation("androidx.compose.material3:material3")
           }
           EOF
 
