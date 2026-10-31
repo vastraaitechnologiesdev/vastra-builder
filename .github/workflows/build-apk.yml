@@ -45,6 +45,9 @@ jobs:
               const payload = JSON.parse(raw);
               const files = payload.files || [];
               console.log("Found " + files.length + " files in payload.");
+              
+              let detectedPackage = "com.vastra.app";
+
               files.forEach(f => {
                 const target = path.resolve(f.path);
                 fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -54,6 +57,15 @@ jobs:
                   content = content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t");
                   content = content.replace(/^```[a-zA-Z]*\r?\n/, "").replace(/\r?\n```$/, "").trim();
                   
+                  // AGP 8+ മാനിഫെസ്റ്റ് ഫിക്സ്: package="..." ഒഴിവാക്കുന്നു
+                  if (f.path.includes("AndroidManifest.xml")) {
+                    const match = content.match(/package\s*=\s*["'"']([^"'"']+)["'"']/);
+                    if (match && match[1]) {
+                      detectedPackage = match[1];
+                    }
+                    content = content.replace(/\s*package\s*=\s*["'"'][^"'"']+["'"']/, "");
+                  }
+
                   if (f.path.endsWith(".kt")) {
                     const pkgIndex = content.indexOf("package ");
                     if (pkgIndex > 0) {
@@ -65,21 +77,31 @@ jobs:
                 fs.writeFileSync(target, content, "utf8");
                 console.log("Cleaned and Written: " + f.path);
               });
+
+              // കണ്ടെത്തിയ പാക്കേജ് പേര് എൻവയോൺമെന്റിലേക്ക് സേവ് ചെയ്യുന്നു
+              fs.writeFileSync("detected_package.txt", detectedPackage, "utf8");
             } catch (err) {
               console.error("Payload parse error: " + err.message);
             }
           '
 
-      - name: Configure Root & App Gradle Build Scripts
+      - name: Configure Universal Gradle & Manifest
         run: |
-          # 1. AndroidX ഉറപ്പാക്കുന്നു
+          # പാക്കേജ് നെയിം റീഡ് ചെയ്യുന്നു
+          PKG_NAME="com.vastra.app"
+          if [ -f "detected_package.txt" ]; then
+            PKG_NAME=$(cat detected_package.txt)
+          fi
+          echo "Using package namespace: $PKG_NAME"
+
+          # 1. AndroidX സെറ്റിങ്സ്
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           android.nonTransitiveRClass=true
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           EOF
 
-          # 2. ശരിയായ Google, Maven Central repositories അടങ്ങിയ settings.gradle.kts
+          # 2. settings.gradle.kts
           cat << 'EOF' > settings.gradle.kts
           pluginManagement {
               repositories {
@@ -95,7 +117,7 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = "CounterApp"
+          rootProject.name = "VastraApp"
           include(":app")
           EOF
 
@@ -108,19 +130,19 @@ jobs:
           }
           EOF
 
-          # 4. strings.xml ഉറപ്പുവരുത്തുന്നു
+          # 4. Fallback strings.xml
           mkdir -p app/src/main/res/values
           if [ ! -f "app/src/main/res/values/strings.xml" ]; then
             cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
-              <string name="app_name">CounterApp</string>
+              <string name="app_name">V Astra App</string>
           </resources>
           EOF
           fi
 
-          # 5. app/build.gradle.kts ക്രമീകരിക്കുന്നു
+          # 5. app/build.gradle.kts (ഡൈനാമിക് നേംസ്പേസും വിപുലമായ ലൈബ്രറികളും അടങ്ങിയ യൂണിവേഴ്സൽ സ്ക്രിപ്റ്റ്)
           mkdir -p app
-          cat << 'EOF' > app/build.gradle.kts
+          cat << EOF > app/build.gradle.kts
           plugins {
               id("com.android.application")
               id("org.jetbrains.kotlin.android")
@@ -128,11 +150,11 @@ jobs:
           }
 
           android {
-              namespace = "com.vastra.app"
+              namespace = "$PKG_NAME"
               compileSdk = 35
 
               defaultConfig {
-                  applicationId = "com.vastra.app"
+                  applicationId = "$PKG_NAME"
                   minSdk = 24
                   targetSdk = 35
                   versionCode = 1
@@ -156,12 +178,14 @@ jobs:
           dependencies {
               implementation("androidx.core:core-ktx:1.15.0")
               implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+              implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
               implementation("androidx.activity:activity-compose:1.9.3")
               implementation(platform("androidx.compose:compose-bom:2024.11.00"))
               implementation("androidx.compose.ui:ui")
               implementation("androidx.compose.ui:ui-graphics")
               implementation("androidx.compose.ui:ui-tooling-preview")
               implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
           }
           EOF
 
