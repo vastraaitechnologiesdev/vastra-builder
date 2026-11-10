@@ -33,56 +33,62 @@ jobs:
         env:
           RAW_PAYLOAD: ${{ toJson(github.event.client_payload) }}
         run: |
-          node -e '
-            const fs = require("fs");
-            const path = require("path");
-            const raw = process.env.RAW_PAYLOAD;
-            if (!raw) {
-              console.log("No payload found!");
-              process.exit(0);
-            }
-            try {
-              const payload = JSON.parse(raw);
-              const files = payload.files || [];
-              console.log("Found " + files.length + " files in payload.");
-              
-              let detectedPackage = "com.vastra.app";
+          cat << 'EOSCRIPT' > sanitize.js
+          const fs = require("fs");
+          const path = require("path");
 
-              files.forEach(f => {
-                const target = path.resolve(f.path);
-                fs.mkdirSync(path.dirname(target), { recursive: true });
-                
-                let content = f.content || "";
-                if (typeof content === "string") {
-                  content = content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t");
-                  content = content.replace(/^```[a-zA-Z]*\r?\n/, "").replace(/\r?\n```$/, "").trim();
-                  
-                  // മാനിഫെസ്റ്റിലെ അനാവശ്യ package="..." നിർബന്ധമായും നീക്കം ചെയ്യുന്നു
-                  if (f.path.includes("AndroidManifest.xml")) {
-                    const match = content.match(/package\s*=\s*["'"']([^"'"']+)["'"']/);
-                    if (match && match[1]) {
-                      detectedPackage = match[1];
-                    }
-                    content = content.replace(/\s*package\s*=\s*["'"'][^"'"']+["'"']/, "");
+          const raw = process.env.RAW_PAYLOAD;
+          if (!raw) {
+            console.log("No payload found!");
+            process.exit(0);
+          }
+
+          try {
+            const payload = JSON.parse(raw);
+            const files = payload.files || [];
+            console.log("Found " + files.length + " files in payload.");
+
+            let detectedPackage = "com.vastra.app";
+
+            files.forEach(f => {
+              const target = path.resolve(f.path);
+              fs.mkdirSync(path.dirname(target), { recursive: true });
+
+              let content = f.content || "";
+              if (typeof content === "string") {
+                content = content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t");
+                content = content.replace(/^```[a-zA-Z]*\r?\n/, "").replace(/\r?\n```$/, "").trim();
+
+                // Manifest-ലെ പഴയ package attribute നീക്കം ചെയ്യുന്നു
+                if (f.path.includes("AndroidManifest.xml")) {
+                  const match = content.match(/package\s*=\s*["']([^"']+)["']/);
+                  if (match && match[1]) {
+                    detectedPackage = match[1];
                   }
+                  content = content.replace(/\s*package\s*=\s*["'][^"']+["']/, "");
+                }
 
-                  if (f.path.endsWith(".kt")) {
-                    const pkgIndex = content.indexOf("package ");
-                    if (pkgIndex > 0) {
-                      content = content.substring(pkgIndex);
-                    }
+                // Kotlin ഫയലുകളിൽ പാക്കേജിന് മുന്നിലുള്ള അനാവശ്യ ചിഹ്നങ്ങൾ ഒഴിവാക്കുന്നു
+                if (f.path.endsWith(".kt")) {
+                  const pkgIndex = content.indexOf("package ");
+                  if (pkgIndex > 0) {
+                    content = content.substring(pkgIndex);
                   }
                 }
-                
-                fs.writeFileSync(target, content, "utf8");
-                console.log("Cleaned and Written: " + f.path);
-              });
+              }
 
-              fs.writeFileSync("detected_package.txt", detectedPackage, "utf8");
-            } catch (err) {
-              console.error("Payload parse error: " + err.message);
-            }
-          '
+              fs.writeFileSync(target, content, "utf8");
+              console.log("Cleaned and Written: " + f.path);
+            });
+
+            fs.writeFileSync("detected_package.txt", detectedPackage, "utf8");
+          } catch (err) {
+            console.error("Payload parse error: " + err.message);
+            process.exit(1);
+          }
+          EOSCRIPT
+
+          node sanitize.js
 
       - name: Configure Universal Gradle & Manifest
         run: |
