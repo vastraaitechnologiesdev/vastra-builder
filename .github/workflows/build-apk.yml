@@ -5,6 +5,9 @@ on:
     types: [build-apk]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -196,9 +199,12 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
+      - name: Publish Direct APK Release
+        uses: softprops/action-gh-release@v2
+        if: success()
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 1
+          tag_name: "v${{ github.run_number }}"
+          name: "Build #${{ github.run_number }}"
+          files: app/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
