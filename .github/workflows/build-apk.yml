@@ -57,7 +57,7 @@ jobs:
                   content = content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t");
                   content = content.replace(/^```[a-zA-Z]*\r?\n/, "").replace(/\r?\n```$/, "").trim();
                   
-                  // AGP 8+ മാനിഫെസ്റ്റ് ഫിക്സ്: package="..." ഒഴിവാക്കുന്നു
+                  // മാനിഫെസ്റ്റിലെ അനാവശ്യ package="..." നിർബന്ധമായും നീക്കം ചെയ്യുന്നു
                   if (f.path.includes("AndroidManifest.xml")) {
                     const match = content.match(/package\s*=\s*["'"']([^"'"']+)["'"']/);
                     if (match && match[1]) {
@@ -78,7 +78,6 @@ jobs:
                 console.log("Cleaned and Written: " + f.path);
               });
 
-              // കണ്ടെത്തിയ പാക്കേജ് പേര് എൻവയോൺമെന്റിലേക്ക് സേവ് ചെയ്യുന്നു
               fs.writeFileSync("detected_package.txt", detectedPackage, "utf8");
             } catch (err) {
               console.error("Payload parse error: " + err.message);
@@ -87,21 +86,18 @@ jobs:
 
       - name: Configure Universal Gradle & Manifest
         run: |
-          # പാക്കേജ് നെയിം റീഡ് ചെയ്യുന്നു
           PKG_NAME="com.vastra.app"
           if [ -f "detected_package.txt" ]; then
             PKG_NAME=$(cat detected_package.txt)
           fi
           echo "Using package namespace: $PKG_NAME"
 
-          # 1. AndroidX സെറ്റിങ്സ്
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           android.nonTransitiveRClass=true
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           EOF
 
-          # 2. settings.gradle.kts
           cat << 'EOF' > settings.gradle.kts
           pluginManagement {
               repositories {
@@ -121,7 +117,6 @@ jobs:
           include(":app")
           EOF
 
-          # 3. റൂട്ട് build.gradle.kts
           cat << 'EOF' > build.gradle.kts
           plugins {
               id("com.android.application") version "8.7.3" apply false
@@ -130,7 +125,6 @@ jobs:
           }
           EOF
 
-          # 4. Fallback strings.xml
           mkdir -p app/src/main/res/values
           if [ ! -f "app/src/main/res/values/strings.xml" ]; then
             cat << 'EOF' > app/src/main/res/values/strings.xml
@@ -140,7 +134,6 @@ jobs:
           EOF
           fi
 
-          # 5. app/build.gradle.kts (ഡൈനാമിക് നേംസ്പേസും വിപുലമായ ലൈബ്രറികളും അടങ്ങിയ യൂണിവേഴ്സൽ സ്ക്രിപ്റ്റ്)
           mkdir -p app
           cat << EOF > app/build.gradle.kts
           plugins {
@@ -189,7 +182,6 @@ jobs:
           }
           EOF
 
-          # 6. Wrapper ഉറപ്പാക്കുന്നു
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
 
