@@ -59,16 +59,17 @@ jobs:
                 content = content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t");
                 content = content.replace(/^```[a-zA-Z]*\r?\n/, "").replace(/\r?\n```$/, "").trim();
 
-                // Manifest-ലെ പഴയ package attribute നീക്കം ചെയ്യുന്നു
                 if (f.path.includes("AndroidManifest.xml")) {
                   const match = content.match(/package\s*=\s*["']([^"']+)["']/);
                   if (match && match[1]) {
                     detectedPackage = match[1];
                   }
                   content = content.replace(/\s*package\s*=\s*["'][^"']+["']/, "");
+                  
+                  // തീം എറർ തടയാൻ സിസ്റ്റം തീമിലേക്ക് നിർബന്ധമായി മാപ്പ് ചെയ്യുന്നു
+                  content = content.replace(/android:theme\s*=\s*["'][^"']+["']/g, 'android:theme="@android:style/Theme.Material.NoActionBar"');
                 }
 
-                // Kotlin ഫയലുകളിൽ പാക്കേജിന് മുന്നിലുള്ള അനാവശ്യ ചിഹ്നങ്ങൾ ഒഴിവാക്കുന്നു
                 if (f.path.endsWith(".kt")) {
                   const pkgIndex = content.indexOf("package ");
                   if (pkgIndex > 0) {
@@ -175,6 +176,7 @@ jobs:
           }
 
           dependencies {
+              implementation("com.google.android.material:material:1.12.0")
               implementation("androidx.core:core-ktx:1.15.0")
               implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
               implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
